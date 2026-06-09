@@ -80,7 +80,12 @@ const seedInventory = {
       condicao: 'Seminovo',
     },
   ],
+  products: [
+    { id: 1, produto: 'Mouse USB', quantidade: 20 },
+    { id: 2, produto: 'Teclado ABNT2', quantidade: 15 },
+  ],
   nextId: 7,
+  nextProductId: 3,
 };
 
 const sidebarItems = [
@@ -130,6 +135,18 @@ const emptyAssignmentForm = {
   setor: '',
 };
 
+const emptyStockEquipmentForm = {
+  patrimonio: '',
+  tipo: 'Notebook',
+  marcaModelo: '',
+  condicao: 'Novo',
+};
+
+const emptyProductForm = {
+  produto: '',
+  quantidade: '',
+};
+
 function App() {
   const [activeScreen, setActiveScreen] = useState('dashboard');
   const [inventory, setInventory] = useState(seedInventory);
@@ -139,6 +156,11 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [targetId, setTargetId] = useState(null);
   const [equipmentForm, setEquipmentForm] = useState(emptyEquipmentForm);
+  const [stockEquipmentForm, setStockEquipmentForm] = useState(emptyStockEquipmentForm);
+  const [productForm, setProductForm] = useState(emptyProductForm);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editingStockEquipmentId, setEditingStockEquipmentId] = useState(null);
+  const [stockEquipmentTypeFilter, setStockEquipmentTypeFilter] = useState('all');
   const [assignmentForm, setAssignmentForm] = useState(emptyAssignmentForm);
   const [ready, setReady] = useState(false);
 
@@ -146,7 +168,13 @@ function App() {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        setInventory(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setInventory({
+          ...seedInventory,
+          ...parsed,
+          products: parsed.products || seedInventory.products,
+          nextProductId: parsed.nextProductId || seedInventory.nextProductId,
+        });
       } catch {
         setInventory(seedInventory);
       }
@@ -161,6 +189,11 @@ function App() {
 
   const parkItems = inventory.park;
   const stockItems = inventory.stock;
+  const productItems = inventory.products || [];
+  const filteredStockItems = stockItems.filter((item) => {
+    if (stockEquipmentTypeFilter === 'all') return true;
+    return item.tipo === stockEquipmentTypeFilter;
+  });
 
   const totalPark = parkItems.reduce((sum, item) => sum + 1, 0);
   const parkByType = {
@@ -194,6 +227,18 @@ function App() {
     setModalMode('equipment');
   };
 
+  const openAddProduct = () => {
+    setEditingProductId(null);
+    setProductForm(emptyProductForm);
+    setModalMode('product');
+  };
+
+  const openAddStockEquipment = () => {
+    setEditingStockEquipmentId(null);
+    setStockEquipmentForm(emptyStockEquipmentForm);
+    setModalMode('stock-equipment');
+  };
+
   const openEditEquipment = (item) => {
     setEditingId(item.id);
     setEquipmentForm({
@@ -214,11 +259,35 @@ function App() {
     setModalMode('assignment');
   };
 
+  const openEditProduct = (item) => {
+    setEditingProductId(item.id);
+    setProductForm({
+      produto: item.produto,
+      quantidade: String(item.quantidade),
+    });
+    setModalMode('product');
+  };
+
+  const openEditStockEquipment = (item) => {
+    setEditingStockEquipmentId(item.id);
+    setStockEquipmentForm({
+      patrimonio: item.patrimonio,
+      tipo: item.tipo,
+      marcaModelo: item.marcaModelo,
+      condicao: item.condicao || 'Novo',
+    });
+    setModalMode('stock-equipment');
+  };
+
   const closeModal = () => {
     setModalMode(null);
     setEditingId(null);
     setTargetId(null);
     setEquipmentForm(emptyEquipmentForm);
+    setStockEquipmentForm(emptyStockEquipmentForm);
+    setProductForm(emptyProductForm);
+    setEditingProductId(null);
+    setEditingStockEquipmentId(null);
     setAssignmentForm(emptyAssignmentForm);
   };
 
@@ -302,8 +371,105 @@ function App() {
     closeModal();
   };
 
+  const saveProduct = (event) => {
+    event.preventDefault();
+
+    const quantity = Number(productForm.quantidade);
+    if (!productForm.produto.trim() || Number.isNaN(quantity) || quantity < 0) {
+      return;
+    }
+
+    if (editingProductId) {
+      setInventory((current) => ({
+        ...current,
+        products: (current.products || []).map((item) =>
+          item.id === editingProductId
+            ? {
+                ...item,
+                produto: productForm.produto.trim(),
+                quantidade: quantity,
+              }
+            : item,
+        ),
+      }));
+    } else {
+      const newProduct = {
+        id: inventory.nextProductId,
+        produto: productForm.produto.trim(),
+        quantidade,
+      };
+
+      setInventory((current) => ({
+        ...current,
+        products: [...(current.products || []), newProduct],
+        nextProductId: current.nextProductId + 1,
+      }));
+    }
+
+    closeModal();
+  };
+
+  const saveStockEquipment = (event) => {
+    event.preventDefault();
+
+    if (!stockEquipmentForm.patrimonio.trim() || !stockEquipmentForm.marcaModelo.trim()) {
+      return;
+    }
+
+    if (editingStockEquipmentId) {
+      setInventory((current) => ({
+        ...current,
+        stock: current.stock.map((item) =>
+          item.id === editingStockEquipmentId
+            ? {
+                ...item,
+                patrimonio: stockEquipmentForm.patrimonio.trim(),
+                tipo: stockEquipmentForm.tipo,
+                marcaModelo: stockEquipmentForm.marcaModelo.trim(),
+                condicao: stockEquipmentForm.condicao,
+              }
+            : item,
+        ),
+      }));
+    } else {
+      const newStockEquipment = {
+        id: inventory.nextId,
+        patrimonio: stockEquipmentForm.patrimonio.trim(),
+        tipo: stockEquipmentForm.tipo,
+        marcaModelo: stockEquipmentForm.marcaModelo.trim(),
+        condicao: stockEquipmentForm.condicao,
+      };
+
+      setInventory((current) => ({
+        ...current,
+        stock: [...current.stock, newStockEquipment],
+        nextId: current.nextId + 1,
+      }));
+    }
+
+    closeModal();
+  };
+
+  const removeStockEquipment = (itemId) => {
+    setInventory((current) => ({
+      ...current,
+      stock: current.stock.filter((item) => item.id !== itemId),
+    }));
+  };
+
+  const removeProduct = (productId) => {
+    setInventory((current) => ({
+      ...current,
+      products: (current.products || []).filter((item) => item.id !== productId),
+    }));
+  };
+
   const totalEmUso = dashboardChart.reduce((sum, item) => sum + item.emUso, 0);
   const totalEstoque = dashboardChart.reduce((sum, item) => sum + item.emEstoque, 0);
+  const totalStockMachines = stockItems.length;
+  const totalProducts = productItems.length;
+  const totalProductQuantity = productItems.reduce((sum, item) => sum + Number(item.quantidade || 0), 0);
+  const totalGeralItens = totalEmUso + totalStockMachines + totalProductQuantity;
   const cityOptions = equipmentForm.estado ? locationOptions[equipmentForm.estado] || [] : [];
 
   const handleStateChange = (value) => {
@@ -407,7 +573,7 @@ function App() {
           <main className="px-4 py-6 sm:px-6 lg:px-8">
             {activeScreen === 'dashboard' && (
               <div className="space-y-6">
-                <section className="grid gap-4 xl:grid-cols-4 lg:grid-cols-2">
+                <section className="grid gap-4 xl:grid-cols-6 lg:grid-cols-2">
                   <MetricCard
                     title="Total do Parque"
                     value={totalPark}
@@ -421,16 +587,28 @@ function App() {
                     icon={UserRoundCheck}
                   />
                   <MetricCard
-                    title="Estoque de Notebooks"
-                    value={stockByType.Notebook}
-                    description="Aparelhos parados em estoque"
+                    title="Máquinas em Estoque"
+                    value={totalStockMachines}
+                    description="Equipamentos parados aguardando atribuição"
                     icon={Laptop2}
                   />
                   <MetricCard
-                    title="Estoque de Celulares"
-                    value={stockByType.Celular}
-                    description="Aparelhos parados em estoque"
+                    title="Produtos Cadastrados"
+                    value={totalProducts}
+                    description="Itens de consumo e apoio no estoque"
+                    icon={Box}
+                  />
+                  <MetricCard
+                    title="Quantidade Total de Produtos"
+                    value={totalProductQuantity}
+                    description="Soma de todas as quantidades cadastradas"
                     icon={Smartphone}
+                  />
+                  <MetricCard
+                    title="Total Geral de Itens"
+                    value={totalGeralItens}
+                    description="Máquinas em uso, estoque e produtos somados"
+                    icon={BarChart3}
                   />
                 </section>
 
@@ -489,7 +667,10 @@ function App() {
 
                     <div className="space-y-4">
                       <SummaryRow label="Itens em uso" value={totalEmUso} accent="text-sky-300" />
-                      <SummaryRow label="Itens em estoque" value={totalEstoque} accent="text-emerald-300" />
+                      <SummaryRow label="Máquinas em estoque" value={totalStockMachines} accent="text-emerald-300" />
+                      <SummaryRow label="Produtos cadastrados" value={totalProducts} accent="text-cyan-300" />
+                      <SummaryRow label="Quantidade total de produtos" value={totalProductQuantity} accent="text-teal-300" />
+                      <SummaryRow label="Total geral de itens" value={totalGeralItens} accent="text-blue-300" />
                       <SummaryRow label="Desktops em uso" value={parkByType.Desktop} accent="text-cyan-300" />
                       <SummaryRow label="Notebooks em uso" value={parkByType.Notebook} accent="text-blue-300" />
                       <SummaryRow label="Celulares em uso" value={parkByType.Celular} accent="text-indigo-300" />
@@ -588,9 +769,41 @@ function App() {
                     <p className="text-sm uppercase tracking-[0.3em] text-sky-300">Estoque</p>
                     <h3 className="mt-1 text-2xl font-semibold text-white">Equipamentos parados</h3>
                   </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-2 text-sm text-slate-400">
-                    Clique em Atribuir para mover ao parque
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                      onClick={openAddStockEquipment}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-700 px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 whitespace-nowrap"
+                    >
+                      <CirclePlus className="h-4 w-4" />
+                      Cadastrar estoque
+                    </button>
+                    <button
+                      onClick={openAddProduct}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-700 px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 whitespace-nowrap"
+                    >
+                      <CirclePlus className="h-4 w-4" />
+                      Cadastrar Produto
+                    </button>
                   </div>
+                </div>
+
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {['all', 'Desktop', 'Notebook', 'Celular'].map((type) => {
+                    const active = stockEquipmentTypeFilter === type;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setStockEquipmentTypeFilter(type)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                          active
+                            ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40'
+                            : 'bg-slate-950 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {type === 'all' ? 'Todos' : type}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-slate-800">
@@ -605,27 +818,100 @@ function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 bg-slate-950/40">
-                      {stockItems.length === 0 ? (
+                      {filteredStockItems.length === 0 ? (
                         <tr>
                           <td colSpan="5" className="px-4 py-10 text-center text-slate-400">
-                            O estoque está vazio no momento.
+                            Nenhuma máquina encontrada para esse filtro.
                           </td>
                         </tr>
                       ) : (
-                        stockItems.map((item) => (
+                        filteredStockItems.map((item) => (
                           <tr key={item.id} className="hover:bg-slate-900/60">
                             <td className="px-4 py-4 font-medium text-white">{item.patrimonio}</td>
                             <td className="px-4 py-4 text-slate-300">{item.tipo}</td>
                             <td className="px-4 py-4 text-slate-300">{item.marcaModelo}</td>
                             <td className="px-4 py-4 text-slate-300">{item.condicao}</td>
                             <td className="px-4 py-4">
-                              <button
-                                onClick={() => openAssignModal(item.id)}
-                                className="inline-flex items-center gap-2 rounded-xl bg-sky-500/15 px-3 py-2 font-medium text-sky-300 transition hover:bg-sky-500/25"
-                              >
-                                <UserRoundCheck className="h-4 w-4" />
-                                Atribuir a Usuário
-                              </button>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => openEditStockEquipment(item)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-slate-200 transition hover:border-sky-500 hover:text-sky-300"
+                                >
+                                  <PencilLine className="h-4 w-4" />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => openAssignModal(item.id)}
+                                  className="inline-flex items-center gap-2 rounded-xl bg-sky-500/15 px-3 py-2 font-medium text-sky-300 transition hover:bg-sky-500/25"
+                                >
+                                  <UserRoundCheck className="h-4 w-4" />
+                                  Atribuir a Usuário
+                                </button>
+                                <button
+                                  onClick={() => removeStockEquipment(item.id)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-900/60 px-3 py-2 text-rose-300 transition hover:bg-rose-950/60"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remover
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {activeScreen === 'stock' && (
+              <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-5 shadow-glow">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.3em] text-sky-300">Produtos</p>
+                    <h3 className="mt-1 text-2xl font-semibold text-white">Itens cadastrados em estoque</h3>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-slate-800">
+                  <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+                    <thead className="bg-slate-950/80 text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Produto</th>
+                        <th className="px-4 py-3 font-medium">Quantidade</th>
+                        <th className="px-4 py-3 font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 bg-slate-950/40">
+                      {productItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="3" className="px-4 py-10 text-center text-slate-400">
+                            Nenhum produto cadastrado no momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        productItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-900/60">
+                            <td className="px-4 py-4 font-medium text-white">{item.produto}</td>
+                            <td className="px-4 py-4 text-slate-300">{item.quantidade}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => openEditProduct(item)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-slate-200 transition hover:border-sky-500 hover:text-sky-300"
+                                >
+                                  <PencilLine className="h-4 w-4" />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => removeProduct(item.id)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-900/60 px-3 py-2 text-rose-300 transition hover:bg-rose-950/60"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remover
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -645,10 +931,22 @@ function App() {
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm uppercase tracking-[0.3em] text-sky-300">
-                  {modalMode === 'equipment' ? 'Cadastro / Edição' : 'Transferência de Estoque'}
+                  {modalMode === 'equipment'
+                    ? 'Cadastro / Edição'
+                    : modalMode === 'stock-equipment'
+                      ? 'Cadastro de Máquina'
+                      : modalMode === 'product'
+                        ? 'Cadastro de Produto'
+                        : 'Transferência de Estoque'}
                 </p>
                 <h3 className="mt-1 text-2xl font-semibold text-white">
-                  {modalMode === 'equipment' ? 'Equipamento' : 'Atribuir a Usuário'}
+                  {modalMode === 'equipment'
+                    ? 'Equipamento'
+                    : modalMode === 'stock-equipment'
+                      ? 'Máquina'
+                      : modalMode === 'product'
+                        ? 'Produto'
+                        : 'Atribuir a Usuário'}
                 </h3>
               </div>
               <button
@@ -759,6 +1057,88 @@ function App() {
                 </div>
               </form>
             )}
+
+            {modalMode === 'stock-equipment' && (
+              <form className="grid gap-4 md:grid-cols-2" onSubmit={saveStockEquipment}>
+                <Field
+                  label="Patrimônio"
+                  value={stockEquipmentForm.patrimonio}
+                  onChange={(value) => setStockEquipmentForm((current) => ({ ...current, patrimonio: value }))}
+                  placeholder="Ex.: TI-4001"
+                />
+                <Field
+                  label="Tipo"
+                  as="select"
+                  value={stockEquipmentForm.tipo}
+                  onChange={(value) => setStockEquipmentForm((current) => ({ ...current, tipo: value }))}
+                  options={['Desktop', 'Notebook', 'Celular']}
+                />
+                <div className="md:col-span-2">
+                  <Field
+                    label="Marca/Modelo"
+                    value={stockEquipmentForm.marcaModelo}
+                    onChange={(value) => setStockEquipmentForm((current) => ({ ...current, marcaModelo: value }))}
+                    placeholder="Ex.: Dell OptiPlex 7010"
+                  />
+                </div>
+                <Field
+                  label="Condição"
+                  as="select"
+                  value={stockEquipmentForm.condicao}
+                  onChange={(value) => setStockEquipmentForm((current) => ({ ...current, condicao: value }))}
+                  options={['Novo', 'Seminovo']}
+                />
+                <div className="md:col-span-2 mt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="rounded-2xl border border-slate-800 px-4 py-3 text-slate-300 transition hover:border-slate-700 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-gradient-to-r from-sky-500 to-blue-700 px-5 py-3 font-medium text-white transition hover:opacity-95"
+                  >
+                    {editingStockEquipmentId ? 'Salvar Máquina' : 'Cadastrar Máquina'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {modalMode === 'product' && (
+              <form className="grid gap-4 md:grid-cols-2" onSubmit={saveProduct}>
+                <div className="md:col-span-2">
+                  <Field
+                    label="Produto"
+                    value={productForm.produto}
+                    onChange={(value) => setProductForm((current) => ({ ...current, produto: value }))}
+                    placeholder="Ex.: Toner, Mouse, Teclado"
+                  />
+                </div>
+                <Field
+                  label="Quantidade"
+                  value={productForm.quantidade}
+                  onChange={(value) => setProductForm((current) => ({ ...current, quantidade: value }))}
+                  placeholder="Ex.: 10"
+                />
+                <div className="md:col-span-2 mt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="rounded-2xl border border-slate-800 px-4 py-3 text-slate-300 transition hover:border-slate-700 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-700 px-5 py-3 font-medium text-white transition hover:opacity-95"
+                  >
+                    {editingProductId ? 'Salvar Produto' : 'Cadastrar Produto'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -781,12 +1161,11 @@ function MetricCard({ title, value, description, icon: Icon }) {
         <div className="rounded-2xl bg-sky-500/15 p-3 text-sky-300">
           <Icon className="h-5 w-5" />
         </div>
-        <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Indicador</span>
       </div>
       <div className="space-y-1">
-        <p className="text-sm text-slate-400">{title}</p>
-        <p className="text-4xl font-semibold text-white">{value}</p>
-        <p className="text-sm leading-6 text-slate-500">{description}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{title}</p>
+        <p className="text-3xl font-semibold text-white">{value}</p>
+        <p className="text-xs leading-5 text-slate-500">{description}</p>
       </div>
     </div>
   );
@@ -795,8 +1174,8 @@ function MetricCard({ title, value, description, icon: Icon }) {
 function SummaryRow({ label, value, accent }) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className={`text-lg font-semibold ${accent}`}>{value}</span>
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className={`text-base font-semibold ${accent}`}>{value}</span>
     </div>
   );
 }
